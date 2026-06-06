@@ -6,7 +6,7 @@ use std::{
     process::{self, Command},
 };
 
-use anyhow::Result;
+use anyhow::{Context, Result, ensure};
 use clap::{Parser, Subcommand};
 use fs_extra::{dir, file};
 use time::{OffsetDateTime, UtcOffset};
@@ -114,8 +114,11 @@ fn build(release: bool, verbose: bool) -> Result<()> {
         cargo.arg("--verbose");
     }
 
-    cargo.spawn()?.wait()?;
-    cargo.current_dir("device_faker_cli/").spawn()?.wait()?;
+    run_command(&mut cargo, "build device_faker native library")?;
+    run_command(
+        cargo.current_dir("device_faker_cli/"),
+        "build device_faker_cli",
+    )?;
 
     // Build WebUI first so that module/webroot/ exists before copying
     build_webui()?;
@@ -126,20 +129,34 @@ fn build(release: bool, verbose: bool) -> Result<()> {
         &temp_dir,
         &dir::CopyOptions::new().overwrite(true).content_only(true),
     )
-    .unwrap();
-    fs::remove_file(temp_dir.join(".gitignore")).unwrap();
+    .context("copy module template into output temp directory")?;
+    fs::remove_file(temp_dir.join(".gitignore")).context("remove temp .gitignore")?;
+
+    let zygisk_bin = bin_path(release);
+    ensure!(
+        zygisk_bin.exists(),
+        "native library was not produced at {}; check the earlier cargo-ndk build output",
+        zygisk_bin.display()
+    );
     file::copy(
-        bin_path(release),
+        &zygisk_bin,
         temp_dir.join("zygisk/arm64-v8a.so"),
         &file::CopyOptions::new().overwrite(true),
     )
-    .unwrap();
+    .with_context(|| format!("copy {} into module zygisk output", zygisk_bin.display()))?;
+
+    let cli_bin = cli_bin_path(release);
+    ensure!(
+        cli_bin.exists(),
+        "CLI binary was not produced at {}; check the earlier cargo-ndk build output",
+        cli_bin.display()
+    );
     file::copy(
-        cli_bin_path(release),
+        &cli_bin,
         temp_dir.join("bin/device_faker_cli"),
         &file::CopyOptions::new().overwrite(true),
     )
-    .unwrap();
+    .with_context(|| format!("copy {} into module bin output", cli_bin.display()))?;
 
     let build_type = if release { "release" } else { "debug" };
     let package_path = Path::new("output").join(format!("device_faker-({build_type}).zip"));
@@ -157,7 +174,7 @@ fn build(release: bool, verbose: bool) -> Result<()> {
 
         options
     })
-    .unwrap();
+    .with_context(|| format!("create package zip at {}", package_path.display()))?;
 
     println!("device_faker built successfully: {:?}", package_path);
 
@@ -192,7 +209,7 @@ fn check(release: bool, verbose: bool) -> Result<()> {
         cargo.arg("--verbose");
     }
 
-    cargo.spawn()?.wait()?;
+    run_command(&mut cargo, "check device_faker native library")?;
 
     Ok(())
 }
@@ -201,7 +218,7 @@ fn clean() -> Result<()> {
     let temp_dir = temp_dir(false);
     let _ = fs::remove_dir_all(&temp_dir);
 
-    Command::new("cargo").arg("clean").spawn()?.wait()?;
+    run_command(Command::new("cargo").arg("clean"), "clean cargo artifacts")?;
 
     Ok(())
 }
@@ -212,7 +229,7 @@ fn format(verbose: bool) -> Result<()> {
     if verbose {
         command.arg("--verbose");
     }
-    command.spawn()?.wait()?;
+    run_command(&mut command, "format workspace")?;
 
     Ok(())
 }
@@ -228,22 +245,26 @@ fn lint(fix: bool) -> Result<()> {
         command
     };
 
-    command_builder(fix).spawn()?.wait()?;
-    command_builder(fix).arg("--release").spawn()?.wait()?;
+    let mut debug_command = command_builder(fix);
+    run_command(&mut debug_command, "run clippy for debug build")?;
+    let mut release_command = command_builder(fix);
+    release_command.arg("--release");
+    run_command(&mut release_command, "run clippy for release build")?;
 
     Ok(())
 }
 
 fn update() -> Result<()> {
-    Command::new("cargo")
-        .args(["update", "--recursive"])
-        .spawn()?
-        .wait()?;
-    Command::new("cargo")
-        .current_dir("xtask")
-        .args(["update", "--recursive"])
-        .spawn()?
-        .wait()?;
+    run_command(
+        Command::new("cargo").args(["update", "--recursive"]),
+        "update workspace dependencies",
+    )?;
+    run_command(
+        Command::new("cargo")
+            .current_dir("xtask")
+            .args(["update", "--recursive"]),
+        "update xtask dependencies",
+    )?;
 
     Ok(())
 }
@@ -288,8 +309,21 @@ fn build_webui() -> Result<()> {
         command
     };
 
-    npm().arg("install").spawn()?.wait()?;
-    npm().args(["run", "build"]).spawn()?.wait()?;
+    let mut install = npm();
+    install.arg("install");
+    run_command(&mut install, "install WebUI dependencies")?;
 
+    let mut build = npm();
+    build.args(["run", "build"]);
+    run_command(&mut build, "build WebUI")?;
+
+    Ok(())
+}
+
+fn run_command(command: &mut Command, description: &str) -> Result<()> {
+    let status = command
+        .status()
+        .with_context(|| format!("failed to start {description}"))?;
+    ensure!(status.success(), "{description} failed with status {status}");
     Ok(())
 }
