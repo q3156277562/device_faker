@@ -132,10 +132,10 @@ impl MyModule {
             );
         }
 
-        hook_build_fields(env, &merged)?;
         hook_timezone(env, &merged)?;
+        hook_build_fields(env, &merged)?;
         if config.debug {
-            info!("Build fields hooked successfully");
+            info!("Build fields and timezone hooked successfully");
         }
 
         match SpoofMode::from_mode_str(&merged.mode) {

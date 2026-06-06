@@ -495,6 +495,10 @@ timezone = "Europe/London"
 [[apps]]
 package = "com.example.delete"
 timezone = "__DELETE__"
+
+[[apps]]
+package = "com.example.empty"
+timezone = ""
 "#,
         )
         .unwrap();
@@ -515,6 +519,17 @@ timezone = "__DELETE__"
         assert!(delete_props.iter().any(|prop| prop == "persist.sys.timezone"));
         assert!(
             !Config::build_merged_property_map(&delete_merged).contains_key("persist.sys.timezone")
+        );
+
+        let empty_merged = config.get_merged_config("com.example.empty").unwrap();
+        assert_eq!(empty_merged.timezone.as_deref(), Some(""));
+        assert!(
+            !Config::build_merged_property_map(&empty_merged).contains_key("persist.sys.timezone")
+        );
+        assert!(
+            !Config::build_delete_props_list(&empty_merged)
+                .iter()
+                .any(|prop| prop == "persist.sys.timezone")
         );
     }
 }
