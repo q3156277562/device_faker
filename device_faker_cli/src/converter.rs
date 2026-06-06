@@ -78,6 +78,7 @@ const SDK_INT_KEYS: &[&str] = &[
     "ro.vendor.build.version.sdk",
     "ro.product.build.version.sdk",
 ];
+const TIMEZONE_KEYS: &[&str] = &["persist.sys.timezone"];
 
 #[derive(Debug, Serialize)]
 struct OutputConfig {
@@ -111,6 +112,8 @@ struct DeviceTemplateToml {
     android_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     sdk_int: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timezone: Option<String>,
 }
 
 impl DeviceTemplateToml {
@@ -127,6 +130,7 @@ impl DeviceTemplateToml {
             || self.characteristics.is_some()
             || self.android_version.is_some()
             || self.sdk_int.is_some()
+            || self.timezone.is_some()
     }
 }
 
@@ -210,6 +214,7 @@ fn build_template(properties: &BTreeMap<String, String>) -> DeviceTemplateToml {
         characteristics: read_non_empty_property(properties, CHARACTERISTICS_KEYS),
         android_version: read_non_empty_property(properties, ANDROID_VERSION_KEYS),
         sdk_int: parse_sdk_int(properties),
+        timezone: read_non_empty_property(properties, TIMEZONE_KEYS),
     }
 }
 
@@ -417,6 +422,7 @@ mod tests {
             ro.build.characteristics=nosdcard
             ro.build.version.release=15
             ro.build.version.sdk=35
+            persist.sys.timezone=Asia/Shanghai
             "#,
         );
 
@@ -436,6 +442,7 @@ mod tests {
         assert_eq!(template.characteristics.as_deref(), Some("nosdcard"));
         assert_eq!(template.android_version.as_deref(), Some("15"));
         assert_eq!(template.sdk_int, Some(35));
+        assert_eq!(template.timezone.as_deref(), Some("Asia/Shanghai"));
     }
 
     #[test]

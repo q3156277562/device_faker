@@ -159,6 +159,7 @@ const templateOptions = computed<TemplateOption[]>(() => {
       template.build_id,
       template.device,
       template.product,
+      template.timezone,
     ]
       .filter(Boolean)
       .map((part) => String(part).toLowerCase())

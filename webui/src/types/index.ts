@@ -23,6 +23,7 @@ export interface DeviceInfo {
   characteristics?: string
   android_version?: string
   sdk_int?: number
+  timezone?: string
   custom_props?: CustomProps
   force_denylist_unmount?: boolean
 }

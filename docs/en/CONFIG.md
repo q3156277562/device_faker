@@ -173,6 +173,7 @@ model = "SM-S9280"
 | `characteristics` | ❌ | `ro.build.characteristics` | Characteristics (e.g., tablet) - Full mode only |
 | `android_version` | `Build.VERSION.RELEASE` | + `ro.build.version.release` etc. | Android Version (e.g., 15, 14) |
 | `sdk_int` | `Build.VERSION.SDK_INT` | + `ro.build.version.sdk` etc. | SDK Version (e.g., 35, 34) |
+| `timezone` | `TimeZone.setDefault` + `user.timezone` | + `persist.sys.timezone` | Timezone ID (e.g., Asia/Shanghai, UTC) |
 | `custom_props` | ❌ | ✅ | Custom property mapping table |
 | `force_denylist_unmount` | N/A | N/A | Whether to forcibly unmount module mount points for this app; uses `default_force_denylist_unmount` if not specified |
 
@@ -181,6 +182,11 @@ model = "SM-S9280"
 |------|------|------|
 | `android_version` | Android version number, supported by all modes | `"15"`, `"14"`, `"13"` |
 | `sdk_int` | SDK version number, supported by all modes | `35`, `34`, `33` |
+
+**Timezone Spoofing Field**:
+| Field | Description | Example |
+|------|------|------|
+| `timezone` | IANA timezone ID. All modes set the app process default timezone; full/resetprop also spoof `persist.sys.timezone` | `"Asia/Shanghai"`, `"UTC"`, `"Europe/London"` |
 
 **Custom Properties Fields**:
 | Field | Description |
@@ -208,7 +214,8 @@ model = "SM-S9280"
 - `name` field spoofs both `ro.product.name` and `ro.product.device` in full mode
 - `characteristics` field only takes effect in **full mode**
 - `android_version` and `sdk_int` take effect in **all modes**
-- In **lite mode**, only `manufacturer`, `brand`, `model`, `device`, `product`, `fingerprint`, `build_id`, `android_version`, `sdk_int` take effect
+- `timezone` sets the process default timezone in all modes (affecting `TimeZone.getDefault()` / `ZoneId.systemDefault()`); full/resetprop modes also spoof `persist.sys.timezone`
+- In **lite mode**, only `manufacturer`, `brand`, `model`, `device`, `product`, `fingerprint`, `build_id`, `android_version`, `sdk_int`, `timezone` take effect
 
 ## Build ID Spoofing
 
@@ -257,6 +264,31 @@ sdk_int = 33
 - `ro.system.build.version.sdk`
 - `ro.vendor.build.version.sdk`
 - `ro.product.build.version.sdk`
+
+## Timezone Spoofing
+
+```toml
+# Template example: Spoof as Shanghai timezone
+[templates.shanghai_timezone]
+packages = ["com.app.reads.timezone"]
+timezone = "Asia/Shanghai"
+
+# App example: Spoof as UTC
+[[apps]]
+package = "com.example.timezone"
+mode = "lite"  # Lite mode also supports process default timezone spoofing
+timezone = "UTC"
+```
+
+**Properties Modified by Timezone Spoofing**:
+
+| Mode | Java/process default timezone | System Properties |
+|------|-------------------------------|-------------------|
+| lite | `java.util.TimeZone.setDefault` + `user.timezone` | ❌ |
+| full | `java.util.TimeZone.setDefault` + `user.timezone` | `persist.sys.timezone` |
+| resetprop | `java.util.TimeZone.setDefault` + `user.timezone` | `persist.sys.timezone` |
+
+Use standard IANA timezone IDs such as `Asia/Shanghai`, `Asia/Tokyo`, `UTC`, or `Europe/London`.
 
 ## Custom Properties
 
@@ -314,6 +346,7 @@ model = "__DELETE__"          # Delete model property
 | Property Emptying/Deletion | ❌ | ✅ | ✅ |
 | Android Version Spoofing | ✅ | ✅ | ✅ |
 | SDK Version Spoofing | ✅ | ✅ | ✅ |
+| Timezone Spoofing | ✅ | ✅ | ✅ |
 | Module Unloadable | ✅ | ❌ | ❌ |
 | Stealth | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ |
 | Detection Risk | Very Low | Lower | Lower |

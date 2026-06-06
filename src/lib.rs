@@ -13,7 +13,7 @@ use companion::{
     spoof_system_props_via_companion,
 };
 use config::{Config, MergedAppConfig};
-use hooks::{hook_build_fields, hook_native_property_get, hook_system_properties};
+use hooks::{hook_build_fields, hook_native_property_get, hook_system_properties, hook_timezone};
 use jni::{EnvUnowned, errors::ThrowRuntimeExAndDefault};
 use log::{LevelFilter, error, info};
 use state::{FAKE_PROPS, IS_FULL_MODE};
@@ -133,6 +133,7 @@ impl MyModule {
         }
 
         hook_build_fields(env, &merged)?;
+        hook_timezone(env, &merged)?;
         if config.debug {
             info!("Build fields hooked successfully");
         }

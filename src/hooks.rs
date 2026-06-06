@@ -106,6 +106,54 @@ fn hook_version_fields(
     Ok(())
 }
 
+/// 设置目标应用进程内的默认时区。
+pub fn hook_timezone(
+    env: &mut EnvUnowned,
+    merged_config: &MergedAppConfig,
+) -> anyhow::Result<()> {
+    let Some(timezone) = merged_config.timezone.as_deref() else {
+        return Ok(());
+    };
+
+    if timezone.is_empty() || timezone == "__DELETE__" {
+        return Ok(());
+    }
+
+    env.with_env(|jenv| -> Result<(), jni::errors::Error> {
+        let timezone_class = jenv.find_class(jni_str!("java/util/TimeZone"))?;
+        let timezone_id = jenv.new_string(timezone)?;
+        let timezone_object = jenv
+            .call_static_method(
+                &timezone_class,
+                jni_str!("getTimeZone"),
+                jni_sig!("(Ljava/lang/String;)Ljava/util/TimeZone;"),
+                &[JValue::Object(&timezone_id)],
+            )?
+            .l()?;
+
+        jenv.call_static_method(
+            &timezone_class,
+            jni_str!("setDefault"),
+            jni_sig!("(Ljava/util/TimeZone;)V"),
+            &[JValue::Object(&timezone_object)],
+        )?;
+
+        let system_class = jenv.find_class(jni_str!("java/lang/System"))?;
+        let property_key = jenv.new_string("user.timezone")?;
+        let property_value = jenv.new_string(timezone)?;
+        jenv.call_static_method(
+            &system_class,
+            jni_str!("setProperty"),
+            jni_sig!("(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"),
+            &[JValue::Object(&property_key), JValue::Object(&property_value)],
+        )?;
+
+        Ok(())
+    })
+    .resolve::<jni::errors::ThrowRuntimeExAndDefault>();
+    Ok(())
+}
+
 fn set_build_field(
     env: &mut Env,
     build_class: &JClass,

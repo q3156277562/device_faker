@@ -36,6 +36,9 @@ pub struct DeviceTemplate {
     /// SDK 版本伪装（如 35, 34）
     #[serde(default)]
     pub sdk_int: Option<u32>,
+    /// 时区伪装（IANA 时区 ID，如 "Asia/Shanghai"）
+    #[serde(default)]
+    pub timezone: Option<String>,
     /// 自定义属性映射表（仅 full/resetprop 模式支持）
     #[serde(default)]
     pub custom_props: Option<HashMap<String, String>>,
@@ -77,6 +80,9 @@ pub struct AppConfig {
     /// SDK 版本伪装（如 35, 34）
     #[serde(default)]
     pub sdk_int: Option<u32>,
+    /// 时区伪装（IANA 时区 ID，如 "Asia/Shanghai"）
+    #[serde(default)]
+    pub timezone: Option<String>,
     /// 自定义属性映射表（仅 full/resetprop 模式支持）
     #[serde(default)]
     pub custom_props: Option<HashMap<String, String>>,
@@ -148,6 +154,7 @@ impl Config {
                 characteristics: app.characteristics.clone(),
                 android_version: app.android_version.clone(),
                 sdk_int: app.sdk_int,
+                timezone: app.timezone.clone(),
                 custom_props: app.custom_props.clone(),
                 force_denylist_unmount: app
                     .force_denylist_unmount
@@ -174,6 +181,7 @@ impl Config {
                 characteristics: template.characteristics.clone(),
                 android_version: template.android_version.clone(),
                 sdk_int: template.sdk_int,
+                timezone: template.timezone.clone(),
                 custom_props: template.custom_props.clone(),
                 force_denylist_unmount: template
                     .force_denylist_unmount
@@ -285,6 +293,14 @@ impl Config {
             map.insert("ro.product.build.version.sdk".to_string(), sdk_str.clone());
         }
 
+        // 时区伪装属性
+        if let Some(timezone) = &merged.timezone
+            && !timezone.is_empty()
+            && timezone != "__DELETE__"
+        {
+            map.insert("persist.sys.timezone".to_string(), timezone.clone());
+        }
+
         // 自定义属性
         if let Some(custom_props) = &merged.custom_props {
             for (key, value) in custom_props {
@@ -353,6 +369,9 @@ impl Config {
         {
             delete_props.push("ro.build.characteristics".to_string());
         }
+        if merged.timezone.as_ref().is_some_and(|s| s == "__DELETE__") {
+            delete_props.push("persist.sys.timezone".to_string());
+        }
 
         if let Some(custom_props) = &merged.custom_props {
             for (key, value) in custom_props {
@@ -388,6 +407,7 @@ pub struct MergedAppConfig {
     pub characteristics: Option<String>,
     pub android_version: Option<String>,
     pub sdk_int: Option<u32>,
+    pub timezone: Option<String>,
     pub custom_props: Option<HashMap<String, String>>,
     pub force_denylist_unmount: bool,
     pub mode: String,
@@ -458,5 +478,43 @@ build_id = "__DELETE__"
         ] {
             assert!(delete_props.iter().any(|prop| prop == key));
         }
+    }
+
+    #[test]
+    fn timezone_maps_to_property_and_delete_list() {
+        let config = Config::from_toml(
+            r#"
+[templates.tokyo]
+packages = ["com.example.template"]
+timezone = "Asia/Tokyo"
+
+[[apps]]
+package = "com.example.app"
+timezone = "Europe/London"
+
+[[apps]]
+package = "com.example.delete"
+timezone = "__DELETE__"
+"#,
+        )
+        .unwrap();
+
+        let app_merged = config.get_merged_config("com.example.app").unwrap();
+        assert_eq!(app_merged.timezone.as_deref(), Some("Europe/London"));
+        let prop_map = Config::build_merged_property_map(&app_merged);
+        assert_eq!(
+            prop_map.get("persist.sys.timezone").map(String::as_str),
+            Some("Europe/London")
+        );
+
+        let template_merged = config.get_merged_config("com.example.template").unwrap();
+        assert_eq!(template_merged.timezone.as_deref(), Some("Asia/Tokyo"));
+
+        let delete_merged = config.get_merged_config("com.example.delete").unwrap();
+        let delete_props = Config::build_delete_props_list(&delete_merged);
+        assert!(delete_props.iter().any(|prop| prop == "persist.sys.timezone"));
+        assert!(
+            !Config::build_merged_property_map(&delete_merged).contains_key("persist.sys.timezone")
+        );
     }
 }

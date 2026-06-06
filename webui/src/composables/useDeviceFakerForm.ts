@@ -16,6 +16,7 @@ export interface DeviceFakerFormData {
   build_id: string
   android_version: string
   sdk_int: string
+  timezone: string
   characteristics: string
   force_denylist_unmount: boolean | undefined
   mode: 'lite' | 'full' | 'resetprop' | ''
@@ -35,6 +36,7 @@ function createEmptyFormData(): DeviceFakerFormData {
     build_id: '',
     android_version: '',
     sdk_int: '',
+    timezone: '',
     characteristics: '',
     force_denylist_unmount: undefined,
     mode: '',
@@ -94,6 +96,12 @@ export function formDataToTemplate(formData: DeviceFakerFormData, base?: Templat
     delete template.characteristics
   }
 
+  if (formData.timezone) {
+    template.timezone = formData.timezone
+  } else {
+    delete template.timezone
+  }
+
   if (formData.force_denylist_unmount !== undefined) {
     template.force_denylist_unmount = formData.force_denylist_unmount
   }
@@ -126,6 +134,7 @@ export function templateToFormData(template: Template): DeviceFakerFormData {
     build_id: template.build_id || '',
     android_version: template.android_version || '',
     sdk_int: template.sdk_int ? String(template.sdk_int) : '',
+    timezone: template.timezone || '',
     characteristics: template.characteristics || '',
     force_denylist_unmount: template.force_denylist_unmount,
     mode: template.mode || '',
@@ -146,6 +155,7 @@ export function appConfigToFormData(appConfig: AppConfig): DeviceFakerFormData {
     build_id: appConfig.build_id || '',
     android_version: appConfig.android_version || '',
     sdk_int: appConfig.sdk_int ? String(appConfig.sdk_int) : '',
+    timezone: appConfig.timezone || '',
     characteristics: appConfig.characteristics || '',
     force_denylist_unmount: appConfig.force_denylist_unmount,
     mode: appConfig.mode || '',
@@ -167,6 +177,7 @@ export function formDataToAppConfig(formData: DeviceFakerFormData, packageName: 
     build_id: formData.build_id,
     android_version: formData.android_version,
     sdk_int: formData.sdk_int ? Number(formData.sdk_int) : undefined,
+    timezone: formData.timezone,
     characteristics: formData.characteristics,
     force_denylist_unmount: formData.force_denylist_unmount,
     mode: formData.mode || undefined,

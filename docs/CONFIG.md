@@ -173,6 +173,7 @@ model = "SM-S9280"
 | `characteristics` | ❌ | `ro.build.characteristics` | 特性 (如: tablet) - 仅 full 模式生效 |
 | `android_version` | `Build.VERSION.RELEASE` | + `ro.build.version.release` 等 | Android 版本号 (如: 15, 14) |
 | `sdk_int` | `Build.VERSION.SDK_INT` | + `ro.build.version.sdk` 等 | SDK 版本号 (如: 35, 34) |
+| `timezone` | `TimeZone.setDefault` + `user.timezone` | + `persist.sys.timezone` | 时区 ID (如: Asia/Shanghai, UTC) |
 | `custom_props` | ❌ | ✅ | 自定义属性映射表 |
 | `force_denylist_unmount` | N/A | N/A | 是否对该应用强制卸载模块挂载点；未指定时使用 `default_force_denylist_unmount` |
 
@@ -181,6 +182,11 @@ model = "SM-S9280"
 |------|------|------|
 | `android_version` | Android 版本号，所有模式都支持 | `"15"`, `"14"`, `"13"` |
 | `sdk_int` | SDK 版本号，所有模式都支持 | `35`, `34`, `33` |
+
+**时区伪装字段**:
+| 字段 | 说明 | 示例 |
+|------|------|------|
+| `timezone` | IANA 时区 ID，所有模式都会设置应用进程默认时区；full/resetprop 还会伪装 `persist.sys.timezone` | `"Asia/Shanghai"`, `"UTC"`, `"Europe/London"` |
 
 **自定义属性字段**:
 | 字段 | 说明 |
@@ -207,7 +213,8 @@ model = "SM-S9280"
 - `name` 和 `marketname` 仅在 **full 模式**下有效(影响 SystemProperties)
 - `name` 字段在 full 模式下会同时伪装 `ro.product.name` 和 `ro.product.device`
 - `characteristics` 字段仅在 **full 模式**下生效
-- **lite 模式**下,只有 `manufacturer`、`brand`、`model`、`device`、`product`、`fingerprint`、`build_id`、`android_version`、`sdk_int` 生效
+- `timezone` 字段会在所有模式中设置进程默认时区（影响 `TimeZone.getDefault()` / `ZoneId.systemDefault()`），在 **full/resetprop 模式**下还会伪装 `persist.sys.timezone`
+- **lite 模式**下,只有 `manufacturer`、`brand`、`model`、`device`、`product`、`fingerprint`、`build_id`、`android_version`、`sdk_int`、`timezone` 生效
 
 ## Build ID 伪装
 
@@ -256,6 +263,31 @@ sdk_int = 33
 - `ro.system.build.version.sdk`
 - `ro.vendor.build.version.sdk`
 - `ro.product.build.version.sdk`
+
+## 时区伪装
+
+```toml
+# 模板示例：伪装为上海时区
+[templates.shanghai_timezone]
+packages = ["com.app.reads.timezone"]
+timezone = "Asia/Shanghai"
+
+# 应用示例：伪装为 UTC
+[[apps]]
+package = "com.example.timezone"
+mode = "lite"  # lite 模式也支持进程内默认时区伪装
+timezone = "UTC"
+```
+
+**时区伪装会修改的内容**：
+
+| 模式 | Java/进程内默认时区 | 系统属性 |
+|------|---------------------|----------|
+| lite | `java.util.TimeZone.setDefault` + `user.timezone` | ❌ |
+| full | `java.util.TimeZone.setDefault` + `user.timezone` | `persist.sys.timezone` |
+| resetprop | `java.util.TimeZone.setDefault` + `user.timezone` | `persist.sys.timezone` |
+
+请使用标准 IANA 时区 ID，例如 `Asia/Shanghai`、`Asia/Tokyo`、`UTC`、`Europe/London`。
 
 ## 自定义属性
 
@@ -313,6 +345,7 @@ model = "__DELETE__"          # 删除 model 属性
 | 属性置空/删除 | ❌ | ✅ | ✅ |
 | Android 版本伪装 | ✅ | ✅ | ✅ |
 | SDK 版本伪装 | ✅ | ✅ | ✅ |
+| 时区伪装 | ✅ | ✅ | ✅ |
 | 模块可卸载 | ✅ | ❌ | ❌ |
 | 隐蔽性 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ |
 | 被检测风险 | 极低 | 较低 | 较低 |

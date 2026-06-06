@@ -434,9 +434,12 @@ function getStatusLabel(status: OnlineTemplateLoadState) {
 }
 
 function getSummaryText(detail: OnlineTemplateDetail) {
-  const parts = [detail.template.model, detail.template.marketname, detail.template.device].filter(
-    (value): value is string => Boolean(value && value.trim())
-  )
+  const parts = [
+    detail.template.model,
+    detail.template.marketname,
+    detail.template.device,
+    detail.template.timezone,
+  ].filter((value): value is string => Boolean(value && value.trim()))
 
   return parts.join(' · ')
 }

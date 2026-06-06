@@ -36,6 +36,8 @@ device = "REDMAGIC 9 Pro"
 product = "NX769J"
 fingerprint = "nubia/NX769J/NX769J:14/UKQ1.230917.001/20240813.173312:user/release-keys"
 build_id = "UKQ1.230917.001"
+# 可选：伪装应用进程看到的时区（IANA 时区 ID）
+# timezone = "Asia/Shanghai"
 
 [templates]
 [templates."一加15"]
@@ -181,11 +183,12 @@ manufacturer = "vivo"
 #
 # 【字段生效范围】⚠️
 # lite 模式（默认）：
-#   ✅ manufacturer, brand, model, device, product, fingerprint, build_id
+#   ✅ manufacturer, brand, model, device, product, fingerprint, build_id, timezone
 #   ❌ name, marketname, characteristics（仅 full 模式生效）
 #
 # full 模式：
 #   ✅ 所有字段都生效
+#   ⭐ timezone 会设置进程默认时区，并伪装 persist.sys.timezone
 #   ⭐ name 字段会同时伪装 ro.product.name 和 ro.product.device
 #   ⭐ characteristics 在 native 层伪装
 # 

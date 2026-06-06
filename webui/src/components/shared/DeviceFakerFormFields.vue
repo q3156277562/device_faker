@@ -62,6 +62,10 @@
           :placeholder="t('templates.placeholders.sdk_int')"
         />
       </el-form-item>
+
+      <el-form-item :label="t('templates.fields.timezone')">
+        <el-input v-model="formData.timezone" :placeholder="t('templates.placeholders.timezone')" />
+      </el-form-item>
     </el-collapse-item>
   </el-collapse>
 
