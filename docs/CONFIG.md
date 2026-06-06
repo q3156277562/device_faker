@@ -279,15 +279,26 @@ mode = "lite"  # lite 模式也支持进程内默认时区伪装
 timezone = "UTC"
 ```
 
-**时区伪装会修改的内容**：
+**时区伪装会尽可能覆盖的路径**：
 
-| 模式 | Java/进程内默认时区 | 系统属性 |
-|------|---------------------|----------|
-| lite | `java.util.TimeZone.setDefault` + `user.timezone` | ❌ |
-| full | `java.util.TimeZone.setDefault` + `user.timezone` | `persist.sys.timezone` |
-| resetprop | `java.util.TimeZone.setDefault` + `user.timezone` | `persist.sys.timezone` |
+| 路径 | 说明 |
+|------|------|
+| Java 默认时区 | `java.util.TimeZone.setDefault`、`System.setProperty("user.timezone", ...)` |
+| Android ICU | `android.icu.util.TimeZone.setDefault`（类/方法不存在时自动跳过） |
+| Native 进程时区 | `TZ` 环境变量 + `tzset()` |
+| Java SystemProperties | `SystemProperties.get("persist.sys.timezone")` 的 1 参数/2 参数 native_get |
+| Bionic 属性读取 | `__system_property_get`、`property_get`、`__system_property_find`、`__system_property_read_callback`、`__system_property_read` |
+| Native getenv/dlsym | `getenv("TZ")`，并对通过 `dlsym` 获取的相关符号做 best-effort 拦截 |
+| ICU C API | `ucal_getDefaultTimeZone` / `ucal_setDefaultTimeZone` 及常见带版本后缀符号（不可用时跳过） |
+
+| 模式 | Java/进程内默认时区 | Native/ICU/属性 best-effort hook | 系统属性 |
+|------|---------------------|-------------------------------|----------|
+| lite | ✅ | ✅（配置 timezone 时模块会驻留） | 进程内伪装 `persist.sys.timezone` |
+| full | ✅ | ✅ | 进程内伪装 `persist.sys.timezone` |
+| resetprop | ✅ | ✅（配置 timezone 时模块会驻留） | resetprop + 进程内伪装 `persist.sys.timezone` |
 
 请使用标准 IANA 时区 ID，例如 `Asia/Shanghai`、`Asia/Tokyo`、`UTC`、`Europe/London`。
+如果目标浏览器使用自带或独立 WebView/Chromium 内核，请把宿主 App 和内核/浏览器包名放到同一个模板中，并优先使用 `mode = "full"`。常见需要额外配置的包包括 `com.android.chrome`、`com.google.android.webview`、`com.android.webview` 以及厂商浏览器/WebView 包。
 
 ## 自定义属性
 

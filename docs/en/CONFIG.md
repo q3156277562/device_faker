@@ -280,15 +280,26 @@ mode = "lite"  # Lite mode also supports process default timezone spoofing
 timezone = "UTC"
 ```
 
-**Properties Modified by Timezone Spoofing**:
+**Timezone spoofing tries to cover these paths**:
 
-| Mode | Java/process default timezone | System Properties |
-|------|-------------------------------|-------------------|
-| lite | `java.util.TimeZone.setDefault` + `user.timezone` | ❌ |
-| full | `java.util.TimeZone.setDefault` + `user.timezone` | `persist.sys.timezone` |
-| resetprop | `java.util.TimeZone.setDefault` + `user.timezone` | `persist.sys.timezone` |
+| Path | Description |
+|------|-------------|
+| Java default timezone | `java.util.TimeZone.setDefault`, `System.setProperty("user.timezone", ...)` |
+| Android ICU | `android.icu.util.TimeZone.setDefault` (skipped automatically when unavailable) |
+| Native process timezone | `TZ` environment variable + `tzset()` |
+| Java SystemProperties | both 1-arg and 2-arg native_get for `SystemProperties.get("persist.sys.timezone")` |
+| Bionic property reads | `__system_property_get`, `property_get`, `__system_property_find`, `__system_property_read_callback`, `__system_property_read` |
+| Native getenv/dlsym | `getenv("TZ")`, plus best-effort interception for related symbols obtained through `dlsym` |
+| ICU C API | `ucal_getDefaultTimeZone` / `ucal_setDefaultTimeZone` and common version-suffixed symbols when available |
+
+| Mode | Java/process default timezone | Native/ICU/property best-effort hooks | System Properties |
+|------|-------------------------------|-------------------------------------|-------------------|
+| lite | ✅ | ✅ (module stays loaded when timezone is configured) | in-process `persist.sys.timezone` spoof |
+| full | ✅ | ✅ | in-process `persist.sys.timezone` spoof |
+| resetprop | ✅ | ✅ (module stays loaded when timezone is configured) | resetprop + in-process `persist.sys.timezone` spoof |
 
 Use standard IANA timezone IDs such as `Asia/Shanghai`, `Asia/Tokyo`, `UTC`, or `Europe/London`.
+If the target browser uses a bundled or separate WebView/Chromium kernel, put both the host app and the kernel/browser packages in the same template, and prefer `mode = "full"`. Common extra packages include `com.android.chrome`, `com.google.android.webview`, `com.android.webview`, and OEM browser/WebView packages.
 
 ## Custom Properties
 

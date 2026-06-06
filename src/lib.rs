@@ -16,7 +16,7 @@ use config::{Config, MergedAppConfig};
 use hooks::{hook_build_fields, hook_native_property_get, hook_system_properties, hook_timezone};
 use jni::{EnvUnowned, errors::ThrowRuntimeExAndDefault};
 use log::{LevelFilter, error, info};
-use state::{FAKE_PROPS, IS_FULL_MODE};
+use state::{FAKE_PROPS, IS_FULL_MODE, TimezoneOverrideKind, timezone_override_kind};
 use zygisk_api::{
     ZygiskModule,
     api::{V4, ZygiskApi, v4::ZygiskOption},
@@ -56,7 +56,7 @@ impl ZygiskModule for MyModule {
         _env: EnvUnowned,
         _args: &<V4 as ZygiskRaw>::AppSpecializeArgs,
     ) {
-        if !IS_FULL_MODE.load(std::sync::atomic::Ordering::Relaxed) {
+        if !Self::should_keep_module_loaded() {
             api.set_option(ZygiskOption::DlCloseModuleLibrary);
         }
     }
@@ -139,10 +139,10 @@ impl MyModule {
         }
 
         match SpoofMode::from_mode_str(&merged.mode) {
-            SpoofMode::Lite => Self::apply_lite_mode(api, config.debug),
+            SpoofMode::Lite => Self::apply_lite_mode(api, env, config.debug),
             SpoofMode::Full => Self::apply_full_mode(api, env, &merged, config.debug),
             SpoofMode::Resetprop => {
-                Self::apply_resetprop_mode(api, &package_with_user, &merged, config.debug)
+                Self::apply_resetprop_mode(api, env, &package_with_user, &merged, config.debug)
             }
         }
     }
@@ -185,9 +185,23 @@ impl MyModule {
         Ok(result)
     }
 
-    fn apply_lite_mode(api: &mut ZygiskApi<V4>, debug: bool) -> anyhow::Result<()> {
+    fn apply_lite_mode(
+        api: &mut ZygiskApi<V4>,
+        env: &mut EnvUnowned,
+        debug: bool,
+    ) -> anyhow::Result<()> {
         FAKE_PROPS.lock().unwrap().clear();
         IS_FULL_MODE.store(false, std::sync::atomic::Ordering::Relaxed);
+
+        if Self::has_timezone_override() {
+            if debug {
+                info!("Lite mode: keeping module loaded for timezone hooks");
+            }
+            hook_system_properties(api, env)?;
+            hook_native_property_get(api)?;
+            return Ok(());
+        }
+
         if debug {
             info!("Lite mode: only Build fields hooked, unloading module");
         }
@@ -224,6 +238,7 @@ impl MyModule {
 
     fn apply_resetprop_mode(
         api: &mut ZygiskApi<V4>,
+        env: &mut EnvUnowned,
         package_name: &str,
         merged: &MergedAppConfig,
         debug: bool,
@@ -242,8 +257,26 @@ impl MyModule {
 
         FAKE_PROPS.lock().unwrap().clear();
         IS_FULL_MODE.store(false, std::sync::atomic::Ordering::Relaxed);
+
+        if Self::has_timezone_override() {
+            if debug {
+                info!("Resetprop mode: keeping module loaded for timezone hooks");
+            }
+            hook_system_properties(api, env)?;
+            hook_native_property_get(api)?;
+            return Ok(());
+        }
+
         api.set_option(ZygiskOption::DlCloseModuleLibrary);
         Ok(())
+    }
+
+    fn has_timezone_override() -> bool {
+        timezone_override_kind() != TimezoneOverrideKind::Inactive
+    }
+
+    fn should_keep_module_loaded() -> bool {
+        IS_FULL_MODE.load(std::sync::atomic::Ordering::Relaxed) || Self::has_timezone_override()
     }
 }
 
